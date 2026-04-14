@@ -1,99 +1,97 @@
-# Astra Pro 相机 Python SDK 封装
+# Carema / Astra Pro
 
-面向奥比中光 Astra Pro 的 Python 工具库，默认使用更稳定的
-`OpenCV OpenNI2 depth + UVC RGB` 架构，支持实时预览、拍照保存和深度图处理。
+面向 Orbbec Astra Pro 的 Python 工具库。
 
-## 架构说明
+当前默认链路：
 
-Astra Pro 是旧版 OpenNI 设备。当前默认链路为：
+- 深度：OpenCV `CAP_OPENNI2_ASTRA` + Orbbec OpenNI runtime
+- 彩色：UVC `/dev/videoX` + OpenCV
 
-- **深度流**：OpenCV `CAP_OPENNI2_ASTRA` + Orbbec OpenNI runtime
-- **彩色流**：普通 UVC `/dev/videoX` + OpenCV
+这条链路已经验证可用，适合实时预览、点击测距和保存 RGB/深度图。
 
-这也是当前在该设备上更稳定、深度值更接近真实毫米值的实现。
-
-## 环境配置
+## 安装
 
 ```bash
 conda create -n camera python=3.10 -y
 conda activate camera
 pip install numpy opencv-python
 
-# 将 OpenCV 重编译为带 OpenNI2 支持的版本
+# 重编译带 OpenNI2 支持的 OpenCV
 bash scripts/build_opencv_openni2.sh
 
 # 安装仓库内置的 Orbbec OpenNI runtime 和 udev 规则
 sudo bash scripts/install_orbbec_openni_runtime.sh
 ```
 
-## 快速使用
-
-```python
-from astra_camera import AstraCamera, AstraViewer, utils
-
-# 方式1：上下文管理器
-with AstraCamera() as cam:
-    frames = cam.get_frames()
-    color = frames["color"]    # BGR numpy
-    depth = frames["depth"]    # uint16 numpy, 单位 mm
-
-# 方式2：实时预览
-viewer = AstraViewer()
-viewer.run()  # 按 q 或 ESC 退出
-
-# 保存图片
-utils.save_color_image(frames["color"], "output/color.png")
-utils.save_depth_png(frames["depth"], "output/depth.png")
-utils.save_depth_raw(frames["depth"], "output/depth.npy")
-```
-
-## 示例脚本
-
-```bash
-python examples/preview.py     # 实时预览彩色+深度
-python examples/capture.py     # 拍照保存到 output/
-python examples/pointcloud.py  # 生成点云 PLY 文件
-```
-
-## OpenCV + OpenNI2 路径
-
-如果你还没有把 runtime 安装到系统路径，可以通过仓库自带包装脚本
-加载本地 vendored 的 Orbbec OpenNI runtime：
+如果 OpenNI2 runtime 还没有装到系统路径，也可以临时这样运行：
 
 ```bash
 bash scripts/run_with_orbbec_openni2.sh python examples/test_opencv_openni.py
 ```
 
-运行时库位于 `third_party/orbbec_openni2/lib`。
+## 快速开始
 
-## API 参考
+实时预览：
 
-### AstraCamera
+```bash
+python examples/preview.py
+```
 
-| 方法 | 说明 |
-|------|------|
-| `open()` | 打开相机（默认 UVC 彩色 + OpenNI2 深度） |
-| `close()` | 关闭相机释放资源 |
-| `get_frames(timeout_ms)` | 获取帧数据，返回 dict |
-| `get_depth_at(depth, x, y)` | 获取像素点深度值 (mm) |
-| `get_camera_param()` | 获取相机内外参 |
+单次抓拍：
 
-### 帧数据格式
+```bash
+python examples/capture.py
+```
+
+也可以运行：
+
+```bash
+python run.py
+```
+
+## 预览交互
+
+`examples/preview.py` 当前支持：
+
+- 左侧显示 RGB，右侧显示深度图
+- 右侧深度图常驻十字准星
+- 鼠标左键点击右侧深度图，测量点击位置附近的深度
+- `q` 或 `ESC` 退出
+
+深度图左上角显示的是 `Pick: (x, y) ... mm`。
+
+## 代码示例
+
+```python
+from astra_camera import AstraCamera
+
+with AstraCamera() as cam:
+    frames = cam.get_frames()
+    color = frames["color"]      # BGR uint8
+    depth = frames["depth"]      # uint16, mm
+    depth_mask = frames["depth_mask"]
+
+    h, w = depth.shape
+    d = cam.get_depth_at(depth, w // 2, h // 2)
+    print(d)
+```
+
+返回的 `frames` 结构：
 
 ```python
 {
-    "color": np.ndarray,      # BGR uint8
-    "depth": np.ndarray,      # uint16, 单位 mm
-    "depth_raw": np.ndarray,  # 原始深度数组
-    "depth_mask": np.ndarray, # 有效深度掩码
-    "timestamp": int,         # 时间戳
+    "color": np.ndarray,
+    "depth": np.ndarray,
+    "depth_raw": np.ndarray,
+    "depth_mask": np.ndarray,
+    "timestamp": int,
 }
 ```
 
 ## 注意事项
 
-- 深度数据单位为毫米 (mm)
-- Astra Pro 不支持硬件帧同步；默认 RGB 与深度来自同一物理设备的两条独立链路
-- OpenNI2 后端通常不直接提供 Astra Pro RGB 图像，彩色图请走 `/dev/videoX`
-- 需要 sudo 权限安装 udev 规则
-# AstroProCamera
+- Astra Pro 不支持硬件同步，RGB 和深度来自同一台设备的两条独立链路
+- 现在的点击测距以右侧深度图为准，不按左侧 RGB 图坐标测距
+- `Center area` 或点击读数是局部有效像素的中值，不是单个像素值
+- OpenNI2 后端通常不直接提供 Astra Pro 的 RGB 图像
+- 如果 RGB 口不是 `/dev/video2`，修改 [astra_camera/camera.py](/home/xcj/work/Carema/astra_camera/camera.py:31) 的 `color_video_index`
