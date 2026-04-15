@@ -43,10 +43,10 @@ python examples/preview.py
 python examples/capture.py
 ```
 
-也可以运行：
+箱子检测示例：
 
 ```bash
-python run.py
+python examples/detect_box.py
 ```
 
 ## 预览交互
@@ -59,6 +59,8 @@ python run.py
 - `q` 或 `ESC` 退出
 
 深度图左上角显示的是 `Pick: (x, y) ... mm`。
+
+`examples/detect_box.py` 会在 RGB 图里找箱子轮廓，并在深度图中返回近似距离。
 
 ## 代码示例
 
