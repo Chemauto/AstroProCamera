@@ -28,7 +28,7 @@ class AstraCamera:
 
     def __init__(
         self,
-        color_video_index: int = 2,
+        color_video_index: int = 0,
         color_width: int = 640,
         color_height: int = 480,
         depth_width: int = 640,
